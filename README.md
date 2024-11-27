@@ -26,5 +26,8 @@ If you are developing a Substreams-powered subgraph, you can use the local Docke
 Demo Steps:
 
 1. `task up`
-2. `task run_db_sink`
-3. `task deploy_subgraph`
+2. `task xfer -- 10000`
+3. `task ss -- 450` # Run substreams output
+4. `task blk -- 450` # Run firehose output
+5. `task db_sink`
+6. `task subgraph`

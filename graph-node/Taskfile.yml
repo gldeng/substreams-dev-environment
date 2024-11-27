@@ -10,6 +10,8 @@ vars:
   DB_SINK_CONFIG_FILE: /Users/steven/repo/gldeng/substreams-aelf-tokens/sink/substreams.dev.yaml
   SUBGRAPH_NAME: aelf-tokens
   SUBGRAPH_MANIFEST_FILE: /Users/steven/repo/gldeng/substreams-aelf-tokens/subgraph.yaml
+  AELF_COMMON_SPKG: https://github.com/gldeng/substreams-foundational-modules/releases/download/v0.1.0-preview.3/aelf-common-v0.1.0-preview.3.spkg
+  AELF_TOKENS_SPKG: /Users/steven/repo/gldeng/substreams-aelf-tokens/substreams-aelf-tokens-v0.1.0.spkg
 
 tasks:
   up:
@@ -32,30 +34,34 @@ tasks:
   # Firehose
   blk:
     cmds:
-      - docker run -it fireaelf tools firehose-client  -p host.docker.internal:10015 2:2 | grep "block_hash" | jq
+      - docker run -it fireaelf tools firehose-client  -p host.docker.internal:10015 {{.CLI_ARGS}}:{{.CLI_ARGS}} | grep "block_hash" | jq
+
+  # Substreams
+  ss:
+    cmds:
+      - |
+        substreams run -e localhost:10016 --plaintext {{.AELF_COMMON_SPKG}} \
+        filtered_state_updates -s {{.CLI_ARGS}} -t +1
+      - |
+        substreams run -e localhost:10016 --plaintext {{.AELF_COMMON_SPKG}} \
+        filtered_events -s {{.CLI_ARGS}} -t +1
+      - |
+        substreams run -e localhost:10016 --plaintext {{.AELF_TOKENS_SPKG}} \
+        all_balance_updates -s {{.CLI_ARGS}} -t +1
+      - |
+        substreams run -e localhost:10016 --plaintext {{.AELF_TOKENS_SPKG}} \
+        all_transfers -s {{.CLI_ARGS}} -t +1
 
   # Sink to DB
-  create_sink_db:
+  db_sink:
     cmds:
       - docker exec -it postgres-gn bash -c "PGPASSWORD='let-me-in' psql -U graph-node -c 'DROP DATABASE IF EXISTS substreams_example;' -c 'CREATE DATABASE substreams_example;'"
-
-  setup_sink_db:
-    cmds:
       - "{{.SUBSTREAMS_SINK_SQL_PATH}}/substreams-sink-sql setup \"psql://graph-node:let-me-in@127.0.0.1:5432/substreams_example?sslmode=disable\" {{.DB_SINK_CONFIG_FILE}}"
-
-  run_db_sink_core:
-    cmds:
       - "{{.SUBSTREAMS_SINK_SQL_PATH}}/substreams-sink-sql run \"psql://graph-node:let-me-in@127.0.0.1:5432/substreams_example?sslmode=disable\" --endpoint localhost:10016 --plaintext --flush-interval 1 {{.DB_SINK_CONFIG_FILE}}"
 
-  run_db_sink:
-    cmds:
-      - task: create_sink_db
-      - task: setup_sink_db
-      - task: run_db_sink_core
-
   # subgraph
-  deploy_subgraph:
+  subgraph:
     cmds:
       - graph remove {{.SUBGRAPH_NAME}} --node=http://localhost:8020
       - graph create {{.SUBGRAPH_NAME}} --node=http://localhost:8020
-      - graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 {{.SUBGRAPH_NAME}} {{.SUBGRAPH_MANIFEST_FILE}}
+      - graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 --version-label v0.1.0 {{.SUBGRAPH_NAME}} {{.SUBGRAPH_MANIFEST_FILE}}
