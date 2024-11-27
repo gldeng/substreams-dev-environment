@@ -1,5 +1,88 @@
 version: "3"
 services:
+  reader:
+    image: "fireaelf"
+    command:
+      - "--config-file"
+      - ""
+      - "start"
+      - "reader-node"
+      - "--common-one-block-store-url"
+      - "file:///data/one-blocks"
+      - "--reader-node-path"
+      - "AElf.Launcher"
+      - "--reader-node-arguments"
+      - "--data-directory /data/node"
+    ports:
+      - "18000:8000"
+    volumes:
+      - "./fireaelf-data:/data"
+      - "./Logs:/app/Logs"
+      - "./start-aelf-node:/app/AElf.Launcher"
+      - "./appsettings.json:/app/appsettings.json"
+      - "./appsettings.MainChain.MainNet.json:/app/appsettings.MainChain.MainNet.json"
+
+  merger:
+    image: "fireaelf"
+    command:
+      - "--config-file"
+      - ""
+      - "start"
+      - "merger"
+      - "--common-one-block-store-url"
+      - "file:///data/one-blocks"
+      - "--common-merged-blocks-store-url"
+      - "file:///data/merged-blocks"
+      - "--common-forked-blocks-store-url"
+      - "file:///data/forked-blocks"
+    volumes:
+      - "./fireaelf-data:/data"
+
+  relayer:
+    image: "fireaelf"
+    depends_on:
+      - reader
+    command:
+      - "--config-file"
+      - ""
+      - "start"
+      - "relayer"
+      - "--common-one-block-store-url"
+      - "file:///data/one-blocks"
+      - "--relayer-source"
+      - "reader:10010"
+    volumes:
+      - "./fireaelf-data:/data"
+
+  firehose:
+    image: "fireaelf"
+    depends_on:
+      - relayer
+    command:
+      - "--config-file"
+      - ""
+      - "start"
+      - "firehose,substreams-tier1,substreams-tier2"
+      - "--common-live-blocks-addr"
+      - "--common-first-streamable-block=1"
+      - "--substreams-state-bundle-size=10"
+      - "--common-one-block-store-url"
+      - "file:///data/one-blocks"
+      - "--common-merged-blocks-store-url"
+      - "file:///data/merged-blocks"
+      - "--common-forked-blocks-store-url"
+      - "file:///data/forked-blocks"
+      - "--common-live-blocks-addr"
+      - "relayer:10014"
+      - "--advertise-chain-name"
+      - "aelf"
+      - "--advertise-block-id-encoding"
+      - "hex"
+    ports:
+      - "10015:10015"
+      - "10016:10016"
+    volumes:
+      - "./fireaelf-data:/data"
   graph-node:
     container_name: graph-node
     image: graphprotocol/graph-node:canary-substreams-index-module-e532c3135
@@ -12,6 +95,7 @@ services:
     depends_on:
       - ipfs
       - postgres
+      - firehose
     extra_hosts:
       - host.docker.internal:host-gateway
     environment:
@@ -25,8 +109,14 @@ services:
       ipfs: 'ipfs:5001'
       ethereum: 'mainnet:http://host.docker.internal:8545'
       GRAPH_LOG: info
-    volumes: 
-      - $CONFIG:/etc/graph-node/config.toml
+    volumes:
+      - ./config.toml:/etc/graph-node/config.toml:Z
+    command: 
+      - /bin/sh
+      - -c
+      - |
+        sleep 10
+        start
   ipfs:
     container_name: ipfs-gn
     image: ipfs/kubo:v0.14.0
@@ -60,7 +150,7 @@ services:
     image: sosedoff/pgweb:0.11.12
     restart: on-failure
     ports:
-      - "8081:8081"
+      - "18081:8081"
     command: ["pgweb", "--bind=0.0.0.0", "--listen=8081", "--binary-codec=hex"]
     #command: ["pgweb", "--binary-codec=base58"]
     #command: ["pgweb", "--binary-codec=base64"]

@@ -1,0 +1,21 @@
+[general]
+
+[store]
+[store.primary]
+connection = "postgresql://graph-node:let-me-in@postgres:5432/graph-node"
+weight = 1
+pool_size = 10
+
+[chains]
+ingestor = "block_ingestor_node"
+[chains.aelf]
+protocol = "substreams"
+shard = "primary"
+provider = [
+  { label = "substreams-provider-aelf", details = { type = "substreams", url = "http://firehose:10016/" } }
+]
+
+[deployment]
+[[deployment.rule]]
+shard = "primary"
+indexers = ["default"]
