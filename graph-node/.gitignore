@@ -1,4 +1,5 @@
 data/
 fireaelf-data/
 Logs/
+build/
 generated-config.toml

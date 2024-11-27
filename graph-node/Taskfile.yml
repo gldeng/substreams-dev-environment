@@ -2,6 +2,15 @@
 
 version: "3"
 
+vars:
+  AELF_CLI_PATH: /Users/steven/repo/gldeng/aelf-cli/AElf.Cli/AElf.Cli/bin/Release/net8.0/osx-arm64
+  SUBSTREAMS_SINK_SQL_PATH: /Users/steven/.substreams/bin
+  SEND_TO: 5i8gir5PhkkGr6a7RWdxzPf5ns3Sd9cp9jQF7maVQUwi6kc4U
+  SEND_AMOUNT: 3456
+  DB_SINK_CONFIG_FILE: /Users/steven/repo/gldeng/substreams-aelf-tokens/sink/substreams.dev.yaml
+  SUBGRAPH_NAME: aelf-tokens
+  SUBGRAPH_MANIFEST_FILE: /Users/steven/repo/gldeng/substreams-aelf-tokens/subgraph.yaml
+
 tasks:
   up:
     cmds:
@@ -12,6 +21,41 @@ tasks:
     cmds:
       - docker-compose down -v
 
-  test:
+  xfer:
     cmds:
-      - docker run -it fireaelf tools firehose-client  -p host.docker.internal:10015 2
+      - "{{.AELF_CLI_PATH}}/aelf send -e http://localhost:18000 {{.SEND_TO}} {{.CLI_ARGS}}"
+
+  balance:
+    cmds:
+      - "{{.AELF_CLI_PATH}}/aelf balance -e http://localhost:18000 {{.SEND_TO}}"
+
+  # Firehose
+  blk:
+    cmds:
+      - docker run -it fireaelf tools firehose-client  -p host.docker.internal:10015 2:2 | grep "block_hash" | jq
+
+  # Sink to DB
+  create_sink_db:
+    cmds:
+      - docker exec -it postgres-gn bash -c "PGPASSWORD='let-me-in' psql -U graph-node -c 'DROP DATABASE IF EXISTS substreams_example;' -c 'CREATE DATABASE substreams_example;'"
+
+  setup_sink_db:
+    cmds:
+      - "{{.SUBSTREAMS_SINK_SQL_PATH}}/substreams-sink-sql setup \"psql://graph-node:let-me-in@127.0.0.1:5432/substreams_example?sslmode=disable\" {{.DB_SINK_CONFIG_FILE}}"
+
+  run_db_sink_core:
+    cmds:
+      - "{{.SUBSTREAMS_SINK_SQL_PATH}}/substreams-sink-sql run \"psql://graph-node:let-me-in@127.0.0.1:5432/substreams_example?sslmode=disable\" --endpoint localhost:10016 --plaintext --flush-interval 1 {{.DB_SINK_CONFIG_FILE}}"
+
+  run_db_sink:
+    cmds:
+      - task: create_sink_db
+      - task: setup_sink_db
+      - task: run_db_sink_core
+
+  # subgraph
+  deploy_subgraph:
+    cmds:
+      - graph remove {{.SUBGRAPH_NAME}} --node=http://localhost:8020
+      - graph create {{.SUBGRAPH_NAME}} --node=http://localhost:8020
+      - graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 {{.SUBGRAPH_NAME}} {{.SUBGRAPH_MANIFEST_FILE}}
