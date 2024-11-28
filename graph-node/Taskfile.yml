@@ -27,7 +27,7 @@ tasks:
     cmds:
       - "{{.AELF_CLI_PATH}}/aelf send -e http://localhost:18000 {{.SEND_TO}} {{.CLI_ARGS}}"
 
-  balance:
+  bal:
     cmds:
       - "{{.AELF_CLI_PATH}}/aelf balance -e http://localhost:18000 {{.SEND_TO}}"
 
