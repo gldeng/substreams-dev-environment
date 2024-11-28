@@ -7,18 +7,47 @@ If you are developing a Substreams-powered subgraph, you can use the local Docke
 
 ```graphql
 {
-  transfers(first: 1000) {
-    id
-    timestamp
-    blockNumber
+  transfers(first: 10, orderBy: blockNumber, orderDirection: desc) {
+    from
+    to
     contract
     symbol
     amount
-    from
-    to
+    memo
+    id
+    blockNumber
+    ordinal
     transaction
     callPath
-    ordinal
+    timestamp
+  }
+}
+```
+
+```graphql
+{
+  transfers(where: {from: "W1ptWN5n5mfdVvh3khTRm9KMJCAUdge9txNyVtyvZaYRYcqc1"}) {
+    to
+    symbol
+    amount
+    memo
+    blockNumber
+    timestamp
+  }
+}
+```
+
+```graphql
+{
+  balances(
+    first: 10
+    where: {owner: "5i8gir5PhkkGr6a7RWdxzPf5ns3Sd9cp9jQF7maVQUwi6kc4U"}
+  ) {
+    balance
+    owner
+    symbol
+    contract
+    timestamp
   }
 }
 ```
